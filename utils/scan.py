@@ -1,0 +1,65 @@
+"""전체 점검 오케스트레이터: 모든 정책 실행 후 리포트용 결과 생성"""
+from datetime import datetime
+from urllib.parse import urlsplit
+
+from utils.attacks import pattern, blind
+from utils.attacks._common import summarize
+
+_CONF_ORDER = {'높음': 3, '중간': 2, '낮음': 1}
+
+
+def _findings(name, results):
+    """취약 근거를 사람이 읽는 설명으로 변환"""
+    evs = [r['evidence'] for r in results if r['verdict'] == 'VULNERABLE']
+    out = []
+    if name == 'SQL Injection':
+        if any('DB 오류' in e for e in evs):
+            out.append('에러 기반 SQL Injection 취약 — DB 오류 메시지 노출, 입력값 검증·에러 처리 미흡')
+        if any('지연' in e for e in evs):
+            out.append('시간 기반 블라인드 SQL Injection 취약 — 조작된 지연이 응답에 반영됨')
+    elif name == 'XSS':
+        if evs:
+            out.append('반사형 XSS 취약 — 입력값이 이스케이프 없이 응답에 출력됨')
+    elif name == 'Blind SQL Injection':
+        if evs:
+            out.append('부울 기반 블라인드 SQL Injection 취약 — 참/거짓 조건에 따라 응답 분기')
+    return out
+
+
+def _policy(name, results):
+    """단일 정책 결과를 리포트용 dict로 요약"""
+    overall, counts = summarize(results)
+    confs = [r['confidence'] for r in results if r['verdict'] == 'VULNERABLE']
+    confidence = max(confs, key=lambda c: _CONF_ORDER.get(c, 0)) if confs else '-'
+    return {
+        'name': name,
+        'verdict': overall,
+        'confidence': confidence,
+        'findings': _findings(name, results),
+        'counts': counts,
+        'total': len(results),
+    }
+
+
+def run_full_scan(url, param='q', timeout=10):
+    """URL 하나로 모든 정책을 점검하고 리포트용 결과 반환"""
+    parts = urlsplit(url if '://' in url else f'http://{url}')
+    scheme = parts.scheme or 'http'
+    target = parts.netloc
+    path = parts.path or '/'
+
+    policies = []
+    _, r = pattern.run(target, 'sqli', param=param, path=path, scheme=scheme, timeout=timeout)
+    policies.append(_policy('SQL Injection', r))
+    _, r = pattern.run(target, 'xss', param=param, path=path, scheme=scheme, timeout=timeout)
+    policies.append(_policy('XSS', r))
+    _, r = blind.run_boolean(target, param=param, path=path, scheme=scheme, timeout=timeout)
+    policies.append(_policy('Blind SQL Injection', r))
+
+    vulnerable = any(p['verdict'] == '취약' for p in policies)
+    return {
+        'url': f'{scheme}://{target}{path}',
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'overall': '취약' if vulnerable else '안전',
+        'policies': policies,
+    }
