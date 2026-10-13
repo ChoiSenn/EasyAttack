@@ -208,3 +208,6 @@ __marimo__/
 
 # EasyAttack 생성 보고서
 reports/
+
+# Claude 문서/에이전트 설정 (로컬 전용, 커밋 제외)
+.claude/
