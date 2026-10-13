@@ -88,7 +88,7 @@ python main.py pattern --list
 | 인자/옵션 | 기본값 | 설명 |
 |-----------|--------|------|
 | `target` | | 대상 도메인/IP 또는 URL |
-| `category` | | 패턴 카테고리 (`sqli`, `xss`) |
+| `category` | | 패턴 카테고리 (`sqli`, `xss`, `traversal`, `cmdi`, `ssti`) |
 | `--param` | `q` | 페이로드를 주입할 파라미터명 |
 | `--path` | `/` | 요청 경로 |
 | `--method` | `GET` | HTTP 메서드 (`GET` / `POST`) |
