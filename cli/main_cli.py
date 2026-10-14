@@ -42,6 +42,15 @@ def cmd_pattern(args):
     if not args.target or not args.category:
         print('오류: target과 category가 필요합니다. (목록: --list)', file=sys.stderr)
         return 2
+    if args.single:
+        # 대표 패턴 1개만 전송, 판정 없이 응답만 출력
+        result = pattern.run_single(args.target, args.category, timeout=args.timeout,
+                                    scheme=args.scheme, verify=not args.insecure)
+        if result is None:
+            print(f'오류: {args.category} 카테고리에 패턴이 없습니다.', file=sys.stderr)
+            return 2
+        print(format_summary(result))
+        return 0 if result['ok'] else 1
     baseline, results = pattern.run(args.target, args.category, param=args.param,
                                     path=args.path, method=args.method,
                                     timeout=args.timeout, scheme=args.scheme,
@@ -109,12 +118,14 @@ def build_parser():
     p_pat.add_argument('--param', default='q', help='주입할 파라미터명 (기본값: q)')
     p_pat.add_argument('--path', default='/', help='요청 경로 (기본값: /)')
     p_pat.add_argument('--method', default='GET', choices=['GET', 'POST'], help='HTTP 메서드')
-    p_pat.add_argument('--location', default='query', choices=['query', 'header', 'cookie'],
-                       help='주입 위치 (기본값: query)')
+    p_pat.add_argument('--location', default='url', choices=['url', 'query', 'header', 'cookie', 'body'],
+                       help='평문(위치 미지정) 패턴의 기본 주입 위치 (기본값: url)')
     p_pat.add_argument('--scheme', default='http', choices=['http', 'https'], help='스킴 (기본값: http)')
     p_pat.add_argument('-k', '--insecure', action='store_true', help='https 인증서 검증 생략')
     p_pat.add_argument('-t', '--timeout', type=int, default=10, help='타임아웃 초 (기본값: 10)')
     p_pat.add_argument('--list', action='store_true', help='패턴 카테고리 목록 출력')
+    p_pat.add_argument('--single', action='store_true',
+                       help='대표 패턴 1개만 전송(판정 없이 응답만 출력)')
     p_pat.set_defaults(func=cmd_pattern)
 
     p_blind = subparsers.add_parser('blind', help='부울 기반 블라인드 SQLi 점검')

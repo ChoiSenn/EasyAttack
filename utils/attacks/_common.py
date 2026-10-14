@@ -11,7 +11,7 @@ def _sanitize_header_value(value):
 
 def inject(target, param, value, path='/', method='GET', timeout=10, scheme='http',
           verify=True, location='query'):
-    """value를 param에 주입해 전송. location: query(기본)/header/cookie"""
+    """value를 param에 주입해 전송. location: query/url(기본, 별칭)/header/cookie/body"""
     if location == 'header':
         headers = {param: _sanitize_header_value(value)}
         return send_http(target, method, path=path, headers=headers,
@@ -19,6 +19,9 @@ def inject(target, param, value, path='/', method='GET', timeout=10, scheme='htt
     if location == 'cookie':
         headers = {'Cookie': f'{param}={_sanitize_header_value(value)}'}
         return send_http(target, method, path=path, headers=headers,
+                         timeout=timeout, scheme=scheme, verify=verify)
+    if location == 'body':
+        return send_http(target, 'POST', path=path, data={param: value},
                          timeout=timeout, scheme=scheme, verify=verify)
     if method.upper() == 'POST':
         return send_http(target, 'POST', path=path, data={param: value},

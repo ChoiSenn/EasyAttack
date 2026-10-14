@@ -44,8 +44,9 @@ format_response(result, body_limit=2000) -> str
 list_categories() -> list[str]
 load_patterns(category) -> list[str]
 
-# utils.attacks.pattern   (location: 'query'|'header'|'cookie', 기본 'query')
-run(target, category, param='q', path='/', method='GET', timeout=10, scheme='http', verify=True, location='query') -> (baseline, results)
+# utils.attacks.pattern   (location: 'url'|'query'|'header'|'cookie'|'body'; 평문 엔트리 기본 위치)
+run(target, category, param='q', path='/', method='GET', timeout=10, scheme='http', verify=True, location='url') -> (baseline, results)
+run_single(target, category, timeout=10, scheme='http', verify=True) -> result|None   # 대표(첫) 엔트리 1개만 전송, 판정 없음
 format_results(baseline, results) -> str
 
 # utils.attacks.blind
@@ -61,12 +62,19 @@ save_report(scan, path=None, out_dir='reports') -> str
 render_html(scan) -> str
 ```
 
-## 4a. 주입 위치(location) 의미 — 2026-10-14 승인
-`_common.inject`와 `pattern.run`의 `location`:
-- `query` (기본) — `?param=payload` (하위호환)
-- `header` — 요청 헤더 `param: payload` (예: param='User-Agent')
-- `cookie` — `Cookie: param=payload`
-CLI는 `--location query|header|cookie`로 노출.
+## 4a. 주입 위치(location) + 패턴 포맷 v2 — 2026-10-14 승인
+`location` 값:
+- `url`(=`query`, 기본) — `?name=payload`
+- `header` — 요청 헤더 `name: payload` (기본 name='User-Agent')
+- `cookie` — `Cookie: name=payload` (기본 name='test')
+- `body` — POST 폼 필드 `name=payload` (기본 name='data')
+
+**패턴 파일 포맷 v2** (`patterns/*.txt`): 줄마다 `[location:name] payload` / `[location] payload` / 평문.
+- 평문(대괄호 없음) 줄 = 기본 `url:q`, 호출부 location/param로 덮어쓰기 가능(기존 파일 호환).
+- **첫 비주석 줄 = 대표**(단일 실행용). 로더: `load_entries`/`load_single`/`load_patterns`(payload만).
+- **단일 실행**: `pattern --single`(또는 GUI 버튼) → `run_single`로 대표 1개만 전송, **판정 없이 응답만** 출력(WAF 탐지 확인은 사용자/WAF 쪽에서).
+- 스캔: 전체 엔트리를 각자 location으로 전송 + 판정(대표 포함).
+CLI `--location`은 `url|query|header|cookie|body`(평문 엔트리 기본 위치).
 
 ## 5. 확장 지점 (API 변경 없이 가능한 것)
 - 패턴 카테고리 추가: `patterns/<cat>.txt` + `verdict.judge_<cat>` 등록 (+ 전체점검이면 `scan`에 등록)

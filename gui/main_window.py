@@ -79,6 +79,26 @@ class PatternWorker(QThread):
         self.finished.emit(pattern.format_results(baseline, results))
 
 
+class SingleWorker(QThread):
+    """단일 실행(대표 패턴 1개 전송)을 위한 워커 스레드"""
+    finished = pyqtSignal(str)
+
+    def __init__(self, target, category, scheme='http', verify=True):
+        super().__init__()
+        self.target = target
+        self.category = category
+        self.scheme = scheme
+        self.verify = verify
+
+    def run(self):
+        """백그라운드에서 대표 패턴 1개 전송 (판정 없음)"""
+        result = pattern.run_single(self.target, self.category, scheme=self.scheme, verify=self.verify)
+        if result is None:
+            self.finished.emit('대표 패턴 없음: 해당 카테고리에 사용할 패턴이 없습니다.')
+        else:
+            self.finished.emit(format_summary(result))
+
+
 class BlindWorker(QThread):
     """부울 기반 블라인드 SQLi 점검을 위한 워커 스레드"""
     finished = pyqtSignal(str)
@@ -125,6 +145,7 @@ class MainWindow(QMainWindow):
         self.ping_worker = None
         self.httpget_worker = None
         self.pattern_worker = None
+        self.single_worker = None
         self.blind_worker = None
         self.fullscan_worker = None
         self.last_single_result = None  # 재현 보기용 마지막 단건 전송 결과
@@ -196,6 +217,9 @@ class MainWindow(QMainWindow):
         self.pattern_button = QPushButton('전송')
         self.pattern_button.clicked.connect(self.on_pattern_clicked)
         attack_layout.addWidget(self.pattern_button)
+        self.single_button = QPushButton('단일 실행')
+        self.single_button.clicked.connect(self.on_single_clicked)
+        attack_layout.addWidget(self.single_button)
         self.blind_button = QPushButton('Blind SQLi')
         self.blind_button.clicked.connect(self.on_blind_clicked)
         attack_layout.addWidget(self.blind_button)
@@ -354,6 +378,37 @@ class MainWindow(QMainWindow):
         self.append_colored(result)
         self.append_result('')
         self.pattern_button.setEnabled(True)
+
+    def on_single_clicked(self):
+        """단일 실행 버튼 클릭 핸들러 (대표 패턴 1개만 전송, 판정 없음)"""
+        input_value = self.input_field.text().strip()
+        if not input_value:
+            self.append_result('오류: 입력값이 비어있습니다.')
+            return
+
+        category = self.category_combo.currentText()
+        if not category:
+            self.append_result('오류: 패턴 카테고리가 없습니다.')
+            return
+
+        if self.single_worker and self.single_worker.isRunning():
+            self.single_worker.terminate()
+            self.single_worker.wait()
+
+        scheme = self.scheme_combo.currentText()
+        self.single_button.setEnabled(False)
+        self.append_result(f'=== 단일 실행 [{category}/{scheme}]: {input_value} ===')
+
+        self.single_worker = SingleWorker(input_value, category, scheme,
+                                          not self.insecure_check.isChecked())
+        self.single_worker.finished.connect(self.on_single_finished)
+        self.single_worker.start()
+
+    def on_single_finished(self, result):
+        """단일 실행 완료 콜백"""
+        self.append_result(result)
+        self.append_result('')
+        self.single_button.setEnabled(True)
 
     def on_blind_clicked(self):
         """블라인드 SQLi 버튼 클릭 핸들러"""
