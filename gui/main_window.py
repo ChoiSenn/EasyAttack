@@ -1,14 +1,31 @@
 """PyQt GUI 메인 윈도우 모듈"""
+import html
 import webbrowser
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QTextEdit, QComboBox,
-                             QCheckBox)
+                             QCheckBox, QDialog)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from utils.network import resolve_to_ip, ping_host
-from utils.packet_sender import send_http_get, format_summary
+from utils.packet_sender import send_http_get, format_summary, format_response
 from utils.patterns import list_categories
 from utils.attacks import pattern, blind
 from utils import scan, report
+
+# 판정/신뢰도 키워드 -> 강조 색상
+_VERDICT_COLORS = {
+    'VULNERABLE': '#d32f2f', '취약': '#d32f2f',
+    'SAFE': '#2e7d32', '안전': '#2e7d32',
+    'INCONCLUSIVE': '#757575', '판단불가': '#757575',
+}
+_CONF_COLORS = {'높음': '#c62828', '중간': '#ef6c00', '낮음': '#757575'}
+
+
+def _colorize(text):
+    """판정/신뢰도 키워드를 HTML 색상 강조로 변환 (줄바꿈 포함)"""
+    escaped = html.escape(text)
+    for word, color in {**_VERDICT_COLORS, **_CONF_COLORS}.items():
+        escaped = escaped.replace(word, f'<b style="color:{color}">{word}</b>')
+    return escaped.replace('\n', '<br>')
 
 
 class PingWorker(QThread):
@@ -35,11 +52,12 @@ class HttpGetWorker(QThread):
         self.target = target
         self.scheme = scheme
         self.verify = verify
+        self.result = None  # 재현 보기용 원본 결과 dict
 
     def run(self):
         """백그라운드에서 HTTP GET 전송"""
-        result = send_http_get(self.target, scheme=self.scheme, verify=self.verify)
-        self.finished.emit(format_summary(result))
+        self.result = send_http_get(self.target, scheme=self.scheme, verify=self.verify)
+        self.finished.emit(format_summary(self.result))
 
 
 class PatternWorker(QThread):
@@ -93,7 +111,7 @@ class FullScanWorker(QThread):
         result = scan.run_full_scan(self.url, verify=self.verify)
         lines = [f'대상: {result["url"]}  종합: {result["overall"]}']
         for p in result['policies']:
-            lines.append(f'  - {p["name"]}: {p["verdict"]} '
+            lines.append(f'  - {p["name"]}: {p["verdict"]} [신뢰도:{p["confidence"]}] '
                          f'({p["counts"]["VULNERABLE"]}/{p["total"]})')
         path = report.save_report(result)
         self.finished.emit('\n'.join(lines), path)
@@ -109,6 +127,7 @@ class MainWindow(QMainWindow):
         self.pattern_worker = None
         self.blind_worker = None
         self.fullscan_worker = None
+        self.last_single_result = None  # 재현 보기용 마지막 단건 전송 결과
         self.init_ui()
     
     def init_ui(self):
@@ -159,6 +178,9 @@ class MainWindow(QMainWindow):
         self.httpget_button = QPushButton('HTTP GET')
         self.httpget_button.clicked.connect(self.on_httpget_clicked)
         packet_layout.addWidget(self.httpget_button)
+        self.reproduce_button = QPushButton('재현 보기')
+        self.reproduce_button.clicked.connect(self.on_reproduce_clicked)
+        packet_layout.addWidget(self.reproduce_button)
         packet_layout.addStretch()
         main_layout.addLayout(packet_layout)
 
@@ -202,6 +224,12 @@ class MainWindow(QMainWindow):
         """결과를 추가하고 자동 스크롤"""
         self.result_text.append(text)
         # 자동 스크롤을 맨 아래로
+        scrollbar = self.result_text.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
+    def append_colored(self, text):
+        """판정/신뢰도 키워드를 색상 강조해 추가 (취약=빨강, 안전=초록, 판단불가=회색)"""
+        self.result_text.insertHtml(_colorize(text) + '<br>')
         scrollbar = self.result_text.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
     
@@ -273,9 +301,27 @@ class MainWindow(QMainWindow):
 
     def on_httpget_finished(self, result):
         """HTTP GET 완료 콜백"""
+        self.last_single_result = self.httpget_worker.result  # 재현 보기용 보관
         self.append_result(result)
         self.append_result('')
         self.httpget_button.setEnabled(True)
+
+    def on_reproduce_clicked(self):
+        """마지막 단건 전송의 요청 URL과 응답 상태/헤더/본문을 보여준다"""
+        if not self.last_single_result:
+            self.append_result('재현할 전송 결과가 없습니다. 먼저 HTTP GET을 실행하세요.')
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle('재현 보기')
+        dlg.resize(600, 500)
+        layout = QVBoxLayout(dlg)
+        view = QTextEdit()
+        view.setReadOnly(True)
+        view.setPlainText(f'요청 URL: {self.last_single_result["url"]}\n\n'
+                          + format_response(self.last_single_result))
+        layout.addWidget(view)
+        dlg.exec_()
 
     def on_pattern_clicked(self):
         """패턴 공격 버튼 클릭 핸들러"""
@@ -304,8 +350,8 @@ class MainWindow(QMainWindow):
         self.pattern_worker.start()
 
     def on_pattern_finished(self, result):
-        """패턴 공격 완료 콜백"""
-        self.append_result(result)
+        """패턴 공격 완료 콜백 (판정/신뢰도 색상 강조)"""
+        self.append_colored(result)
         self.append_result('')
         self.pattern_button.setEnabled(True)
 
@@ -331,8 +377,8 @@ class MainWindow(QMainWindow):
         self.blind_worker.start()
 
     def on_blind_finished(self, result):
-        """블라인드 SQLi 완료 콜백"""
-        self.append_result(result)
+        """블라인드 SQLi 완료 콜백 (판정/신뢰도 색상 강조)"""
+        self.append_colored(result)
         self.append_result('')
         self.blind_button.setEnabled(True)
 
@@ -357,8 +403,8 @@ class MainWindow(QMainWindow):
         self.fullscan_worker.start()
 
     def on_fullscan_finished(self, summary, report_path):
-        """전체 점검 완료 콜백: 요약 표시 후 보고서 열기"""
-        self.append_result(summary)
+        """전체 점검 완료 콜백: 요약(색상 강조) 표시 후 보고서 열기"""
+        self.append_colored(summary)
         self.append_result(f'보고서 저장: {report_path}')
         self.append_result('')
         self.fullscan_button.setEnabled(True)
