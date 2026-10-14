@@ -4,8 +4,22 @@ from urllib.parse import quote
 from utils.packet_sender import send_http
 
 
-def inject(target, param, value, path='/', method='GET', timeout=10, scheme='http', verify=True):
-    """value를 param에 주입해 전송 (GET=쿼리, POST=폼 바디)"""
+def _sanitize_header_value(value):
+    """헤더/쿠키 값에서 전송을 깨뜨리는 개행(CR/LF) 제거 (헤더 스플리팅 방지)"""
+    return value.replace('\r', '').replace('\n', '')
+
+
+def inject(target, param, value, path='/', method='GET', timeout=10, scheme='http',
+          verify=True, location='query'):
+    """value를 param에 주입해 전송. location: query(기본)/header/cookie"""
+    if location == 'header':
+        headers = {param: _sanitize_header_value(value)}
+        return send_http(target, method, path=path, headers=headers,
+                         timeout=timeout, scheme=scheme, verify=verify)
+    if location == 'cookie':
+        headers = {'Cookie': f'{param}={_sanitize_header_value(value)}'}
+        return send_http(target, method, path=path, headers=headers,
+                         timeout=timeout, scheme=scheme, verify=verify)
     if method.upper() == 'POST':
         return send_http(target, 'POST', path=path, data={param: value},
                          timeout=timeout, scheme=scheme, verify=verify)

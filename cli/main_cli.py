@@ -45,7 +45,7 @@ def cmd_pattern(args):
     baseline, results = pattern.run(args.target, args.category, param=args.param,
                                     path=args.path, method=args.method,
                                     timeout=args.timeout, scheme=args.scheme,
-                                    verify=not args.insecure)
+                                    verify=not args.insecure, location=args.location)
     print(pattern.format_results(baseline, results))
     return 0
 
@@ -109,6 +109,8 @@ def build_parser():
     p_pat.add_argument('--param', default='q', help='주입할 파라미터명 (기본값: q)')
     p_pat.add_argument('--path', default='/', help='요청 경로 (기본값: /)')
     p_pat.add_argument('--method', default='GET', choices=['GET', 'POST'], help='HTTP 메서드')
+    p_pat.add_argument('--location', default='query', choices=['query', 'header', 'cookie'],
+                       help='주입 위치 (기본값: query)')
     p_pat.add_argument('--scheme', default='http', choices=['http', 'https'], help='스킴 (기본값: http)')
     p_pat.add_argument('-k', '--insecure', action='store_true', help='https 인증서 검증 생략')
     p_pat.add_argument('-t', '--timeout', type=int, default=10, help='타임아웃 초 (기본값: 10)')
