@@ -31,14 +31,14 @@ def judge_boolean(baseline, r_true, r_false):
     return 'INCONCLUSIVE', f'응답 차이 미미 ({ev})', '낮음'
 
 
-def run_boolean(target, param='q', path='/', method='GET', timeout=10, scheme='http'):
+def run_boolean(target, param='q', path='/', method='GET', timeout=10, scheme='http', verify=True):
     """정상 요청 후 참/거짓 쌍을 전송해 판정. (baseline, results) 반환"""
-    baseline = inject(target, param, 'test', path, method, timeout, scheme)
+    baseline = inject(target, param, 'test', path, method, timeout, scheme, verify)
 
     results = []
     for t, f in PAIRS:
-        r_true = inject(target, param, t, path, method, timeout, scheme)
-        r_false = inject(target, param, f, path, method, timeout, scheme)
+        r_true = inject(target, param, t, path, method, timeout, scheme, verify)
+        r_false = inject(target, param, f, path, method, timeout, scheme, verify)
         v, ev, conf = judge_boolean(baseline, r_true, r_false)
         results.append({'pair': (t, f), 'verdict': v, 'evidence': ev, 'confidence': conf})
     return baseline, results

@@ -28,7 +28,8 @@ def cmd_ping(args):
 
 def cmd_httpget(args):
     """대상에 HTTP GET 전송 후 응답 출력"""
-    result = send_http_get(args.target, path=args.path, timeout=args.timeout, scheme=args.scheme)
+    result = send_http_get(args.target, path=args.path, timeout=args.timeout,
+                           scheme=args.scheme, verify=not args.insecure)
     print(format_summary(result))
     return 0 if result['ok'] else 1
 
@@ -43,7 +44,8 @@ def cmd_pattern(args):
         return 2
     baseline, results = pattern.run(args.target, args.category, param=args.param,
                                     path=args.path, method=args.method,
-                                    timeout=args.timeout, scheme=args.scheme)
+                                    timeout=args.timeout, scheme=args.scheme,
+                                    verify=not args.insecure)
     print(pattern.format_results(baseline, results))
     return 0
 
@@ -52,14 +54,16 @@ def cmd_blind(args):
     """부울 기반 블라인드 SQLi 점검"""
     baseline, results = blind.run_boolean(args.target, param=args.param,
                                           path=args.path, method=args.method,
-                                          timeout=args.timeout, scheme=args.scheme)
+                                          timeout=args.timeout, scheme=args.scheme,
+                                          verify=not args.insecure)
     print(blind.format_results(baseline, results))
     return 0
 
 
 def cmd_fullscan(args):
     """전체 점검: 모든 정책 실행 후 HTML 보고서 생성"""
-    result = scan.run_full_scan(args.url, param=args.param, timeout=args.timeout)
+    result = scan.run_full_scan(args.url, param=args.param, timeout=args.timeout,
+                                verify=not args.insecure)
     # 화면 요약
     print(f'대상: {result["url"]}  종합: {result["overall"]}')
     for p in result['policies']:
@@ -95,6 +99,7 @@ def build_parser():
     p_get.add_argument('target', help='대상 도메인/IP 또는 전체 URL')
     p_get.add_argument('-p', '--path', default='/', help='요청 경로 (기본값: /)')
     p_get.add_argument('--scheme', default='http', choices=['http', 'https'], help='스킴 (기본값: http)')
+    p_get.add_argument('-k', '--insecure', action='store_true', help='https 인증서 검증 생략')
     p_get.add_argument('-t', '--timeout', type=int, default=10, help='타임아웃 초 (기본값: 10)')
     p_get.set_defaults(func=cmd_httpget)
 
@@ -105,6 +110,7 @@ def build_parser():
     p_pat.add_argument('--path', default='/', help='요청 경로 (기본값: /)')
     p_pat.add_argument('--method', default='GET', choices=['GET', 'POST'], help='HTTP 메서드')
     p_pat.add_argument('--scheme', default='http', choices=['http', 'https'], help='스킴 (기본값: http)')
+    p_pat.add_argument('-k', '--insecure', action='store_true', help='https 인증서 검증 생략')
     p_pat.add_argument('-t', '--timeout', type=int, default=10, help='타임아웃 초 (기본값: 10)')
     p_pat.add_argument('--list', action='store_true', help='패턴 카테고리 목록 출력')
     p_pat.set_defaults(func=cmd_pattern)
@@ -115,6 +121,7 @@ def build_parser():
     p_blind.add_argument('--path', default='/', help='요청 경로 (기본값: /)')
     p_blind.add_argument('--method', default='GET', choices=['GET', 'POST'], help='HTTP 메서드')
     p_blind.add_argument('--scheme', default='http', choices=['http', 'https'], help='스킴 (기본값: http)')
+    p_blind.add_argument('-k', '--insecure', action='store_true', help='https 인증서 검증 생략')
     p_blind.add_argument('-t', '--timeout', type=int, default=10, help='타임아웃 초 (기본값: 10)')
     p_blind.set_defaults(func=cmd_blind)
 
@@ -122,6 +129,7 @@ def build_parser():
     p_full.add_argument('url', help='대상 URL (예: https://example.com/page)')
     p_full.add_argument('--param', default='q', help='주입할 파라미터명 (기본값: q)')
     p_full.add_argument('-o', '--output', help='보고서 저장 경로 (기본값: reports/report_시각.html)')
+    p_full.add_argument('-k', '--insecure', action='store_true', help='https 인증서 검증 생략')
     p_full.add_argument('-t', '--timeout', type=int, default=10, help='타임아웃 초 (기본값: 10)')
     p_full.set_defaults(func=cmd_fullscan)
 

@@ -1,7 +1,8 @@
 """PyQt GUI 메인 윈도우 모듈"""
 import webbrowser
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QLineEdit, QPushButton, QLabel, QTextEdit, QComboBox)
+                             QLineEdit, QPushButton, QLabel, QTextEdit, QComboBox,
+                             QCheckBox)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from utils.network import resolve_to_ip, ping_host
 from utils.packet_sender import send_http_get, format_summary
@@ -29,14 +30,15 @@ class HttpGetWorker(QThread):
     """HTTP GET 전송을 위한 워커 스레드"""
     finished = pyqtSignal(str)
 
-    def __init__(self, target, scheme='http'):
+    def __init__(self, target, scheme='http', verify=True):
         super().__init__()
         self.target = target
         self.scheme = scheme
+        self.verify = verify
 
     def run(self):
         """백그라운드에서 HTTP GET 전송"""
-        result = send_http_get(self.target, scheme=self.scheme)
+        result = send_http_get(self.target, scheme=self.scheme, verify=self.verify)
         self.finished.emit(format_summary(result))
 
 
@@ -44,17 +46,18 @@ class PatternWorker(QThread):
     """패턴 기반 공격 전송을 위한 워커 스레드"""
     finished = pyqtSignal(str)
 
-    def __init__(self, target, category, method='GET', scheme='http'):
+    def __init__(self, target, category, method='GET', scheme='http', verify=True):
         super().__init__()
         self.target = target
         self.category = category
         self.method = method
         self.scheme = scheme
+        self.verify = verify
 
     def run(self):
         """백그라운드에서 패턴 공격 전송"""
-        baseline, results = pattern.run(self.target, self.category,
-                                        method=self.method, scheme=self.scheme)
+        baseline, results = pattern.run(self.target, self.category, method=self.method,
+                                        scheme=self.scheme, verify=self.verify)
         self.finished.emit(pattern.format_results(baseline, results))
 
 
@@ -62,15 +65,17 @@ class BlindWorker(QThread):
     """부울 기반 블라인드 SQLi 점검을 위한 워커 스레드"""
     finished = pyqtSignal(str)
 
-    def __init__(self, target, method='GET', scheme='http'):
+    def __init__(self, target, method='GET', scheme='http', verify=True):
         super().__init__()
         self.target = target
         self.method = method
         self.scheme = scheme
+        self.verify = verify
 
     def run(self):
         """백그라운드에서 블라인드 SQLi 점검"""
-        baseline, results = blind.run_boolean(self.target, method=self.method, scheme=self.scheme)
+        baseline, results = blind.run_boolean(self.target, method=self.method,
+                                              scheme=self.scheme, verify=self.verify)
         self.finished.emit(blind.format_results(baseline, results))
 
 
@@ -78,13 +83,14 @@ class FullScanWorker(QThread):
     """전체 점검 + HTML 보고서 생성을 위한 워커 스레드"""
     finished = pyqtSignal(str, str)  # (요약 텍스트, 보고서 경로)
 
-    def __init__(self, url):
+    def __init__(self, url, verify=True):
         super().__init__()
         self.url = url
+        self.verify = verify
 
     def run(self):
         """백그라운드에서 전체 점검 후 보고서 저장"""
-        result = scan.run_full_scan(self.url)
+        result = scan.run_full_scan(self.url, verify=self.verify)
         lines = [f'대상: {result["url"]}  종합: {result["overall"]}']
         for p in result['policies']:
             lines.append(f'  - {p["name"]}: {p["verdict"]} '
@@ -148,6 +154,8 @@ class MainWindow(QMainWindow):
         self.scheme_combo = QComboBox()
         self.scheme_combo.addItems(['http', 'https'])
         packet_layout.addWidget(self.scheme_combo)
+        self.insecure_check = QCheckBox('인증서 검증 안 함')
+        packet_layout.addWidget(self.insecure_check)
         self.httpget_button = QPushButton('HTTP GET')
         self.httpget_button.clicked.connect(self.on_httpget_clicked)
         packet_layout.addWidget(self.httpget_button)
@@ -259,7 +267,7 @@ class MainWindow(QMainWindow):
         self.httpget_button.setEnabled(False)
         self.append_result(f'=== HTTP GET [{scheme}]: {input_value} ===')
 
-        self.httpget_worker = HttpGetWorker(input_value, scheme)
+        self.httpget_worker = HttpGetWorker(input_value, scheme, not self.insecure_check.isChecked())
         self.httpget_worker.finished.connect(self.on_httpget_finished)
         self.httpget_worker.start()
 
@@ -290,7 +298,8 @@ class MainWindow(QMainWindow):
         self.pattern_button.setEnabled(False)
         self.append_result(f'=== 패턴 공격 [{category}/{method}/{scheme}]: {input_value} ===')
 
-        self.pattern_worker = PatternWorker(input_value, category, method, scheme)
+        self.pattern_worker = PatternWorker(input_value, category, method, scheme,
+                                            not self.insecure_check.isChecked())
         self.pattern_worker.finished.connect(self.on_pattern_finished)
         self.pattern_worker.start()
 
@@ -316,7 +325,8 @@ class MainWindow(QMainWindow):
         self.blind_button.setEnabled(False)
         self.append_result(f'=== Blind SQLi [{method}/{scheme}]: {input_value} ===')
 
-        self.blind_worker = BlindWorker(input_value, method, scheme)
+        self.blind_worker = BlindWorker(input_value, method, scheme,
+                                        not self.insecure_check.isChecked())
         self.blind_worker.finished.connect(self.on_blind_finished)
         self.blind_worker.start()
 
@@ -342,7 +352,7 @@ class MainWindow(QMainWindow):
         self.fullscan_button.setEnabled(False)
         self.append_result(f'=== 전체 점검: {url} (진행 중...) ===')
 
-        self.fullscan_worker = FullScanWorker(url)
+        self.fullscan_worker = FullScanWorker(url, not self.insecure_check.isChecked())
         self.fullscan_worker.finished.connect(self.on_fullscan_finished)
         self.fullscan_worker.start()
 

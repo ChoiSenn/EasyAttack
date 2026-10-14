@@ -4,9 +4,9 @@ from utils.verdict import judge, TIME_THRESHOLD
 from utils.attacks._common import inject, summarize
 
 
-def _confirm_timing(target, param, payload, path, method, timeout, scheme, r):
+def _confirm_timing(target, param, payload, path, method, timeout, scheme, verify, r):
     """시간 기반 후보를 재전송해 네트워크 지연과 구분 (보정)"""
-    again = inject(target, param, payload, path, method, timeout, scheme)
+    again = inject(target, param, payload, path, method, timeout, scheme, verify)
     if again['ok'] and again['elapsed'] >= TIME_THRESHOLD:
         r['confidence'] = '높음'
         r['evidence'] += ' (재확인됨)'
@@ -15,18 +15,18 @@ def _confirm_timing(target, param, payload, path, method, timeout, scheme, r):
         r['evidence'] = '지연 재현 안 됨 (네트워크 추정)'
 
 
-def run(target, category, param='q', path='/', method='GET', timeout=10, scheme='http'):
+def run(target, category, param='q', path='/', method='GET', timeout=10, scheme='http', verify=True):
     """정상 요청(기준선) 후 모든 패턴을 주입 전송하고 판정. (baseline, results) 반환"""
-    baseline = inject(target, param, 'test', path, method, timeout, scheme)
+    baseline = inject(target, param, 'test', path, method, timeout, scheme, verify)
 
     results = []
     for payload in load_patterns(category):
-        r = inject(target, param, payload, path, method, timeout, scheme)
+        r = inject(target, param, payload, path, method, timeout, scheme, verify)
         r['payload'] = payload
         r['verdict'], r['evidence'], r['confidence'] = judge(category, r, payload, baseline)
         # 시간 기반 취약 후보는 재확인으로 보정
         if r['verdict'] == 'VULNERABLE' and r['evidence'].startswith('응답 지연'):
-            _confirm_timing(target, param, payload, path, method, timeout, scheme, r)
+            _confirm_timing(target, param, payload, path, method, timeout, scheme, verify, r)
         results.append(r)
     return baseline, results
 

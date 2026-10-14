@@ -4,14 +4,14 @@ from urllib.parse import quote
 from utils.packet_sender import send_http
 
 
-def inject(target, param, value, path='/', method='GET', timeout=10, scheme='http'):
+def inject(target, param, value, path='/', method='GET', timeout=10, scheme='http', verify=True):
     """value를 param에 주입해 전송 (GET=쿼리, POST=폼 바디)"""
     if method.upper() == 'POST':
         return send_http(target, 'POST', path=path, data={param: value},
-                         timeout=timeout, scheme=scheme)
+                         timeout=timeout, scheme=scheme, verify=verify)
     sep = '&' if '?' in path else '?'
     return send_http(target, 'GET', path=f'{path}{sep}{param}={quote(value)}',
-                     timeout=timeout, scheme=scheme)
+                     timeout=timeout, scheme=scheme, verify=verify)
 
 
 def summarize(results):

@@ -50,7 +50,7 @@ def _policy(name, results):
     }
 
 
-def run_full_scan(url, param='q', timeout=10):
+def run_full_scan(url, param='q', timeout=10, verify=True):
     """URL 하나로 모든 정책을 점검하고 리포트용 결과 반환"""
     parts = urlsplit(url if '://' in url else f'http://{url}')
     scheme = parts.scheme or 'http'
@@ -67,9 +67,11 @@ def run_full_scan(url, param='q', timeout=10):
     ]
     policies = []
     for category, name in pattern_policies:
-        _, r = pattern.run(target, category, param=param, path=path, scheme=scheme, timeout=timeout)
+        _, r = pattern.run(target, category, param=param, path=path,
+                           scheme=scheme, timeout=timeout, verify=verify)
         policies.append(_policy(name, r))
-    _, r = blind.run_boolean(target, param=param, path=path, scheme=scheme, timeout=timeout)
+    _, r = blind.run_boolean(target, param=param, path=path,
+                             scheme=scheme, timeout=timeout, verify=verify)
     policies.append(_policy('Blind SQL Injection', r))
 
     vulnerable = any(p['verdict'] == '취약' for p in policies)

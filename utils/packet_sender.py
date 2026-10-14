@@ -1,4 +1,5 @@
 """HTTP 통신 전송 유틸리티"""
+import ssl
 import time
 import urllib.parse
 import urllib.request
@@ -22,20 +23,23 @@ def _encode_body(data, headers):
     return data.encode() if isinstance(data, str) else data
 
 
-def send_http(target, method='GET', path='/', data=None, headers=None, timeout=10, scheme='http'):
+def send_http(target, method='GET', path='/', data=None, headers=None,
+              timeout=10, scheme='http', verify=True):
     """HTTP 요청 전송 후 응답을 dict로 반환
 
     반환: {ok, status, reason, headers, body, url, elapsed, error}
     차단 응답(4xx/5xx)도 예외가 아닌 정상 결과로 반환한다.
+    verify=False면 https 인증서 검증을 생략한다(만료/자체서명 대상용).
     """
     url = _normalize_url(target, path, scheme)
     headers = dict(headers or {})
     body_bytes = _encode_body(data, headers)
     req = urllib.request.Request(url, data=body_bytes, method=method, headers=headers)
+    context = None if verify else ssl._create_unverified_context()
     start = time.perf_counter()
 
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=context) as resp:
             body = resp.read().decode('utf-8', errors='replace')
             return {
                 'ok': True,
@@ -70,15 +74,16 @@ def send_http(target, method='GET', path='/', data=None, headers=None, timeout=1
                 'error': str(e)}
 
 
-def send_http_get(target, path='/', headers=None, timeout=10, scheme='http'):
+def send_http_get(target, path='/', headers=None, timeout=10, scheme='http', verify=True):
     """HTTP GET 전송"""
-    return send_http(target, 'GET', path=path, headers=headers, timeout=timeout, scheme=scheme)
+    return send_http(target, 'GET', path=path, headers=headers,
+                     timeout=timeout, scheme=scheme, verify=verify)
 
 
-def send_http_post(target, path='/', data=None, headers=None, timeout=10, scheme='http'):
+def send_http_post(target, path='/', data=None, headers=None, timeout=10, scheme='http', verify=True):
     """HTTP POST 전송 (data: dict면 폼 전송)"""
     return send_http(target, 'POST', path=path, data=data, headers=headers,
-                     timeout=timeout, scheme=scheme)
+                     timeout=timeout, scheme=scheme, verify=verify)
 
 
 def format_summary(result):

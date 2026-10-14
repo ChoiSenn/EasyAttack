@@ -24,6 +24,9 @@ python main.py <명령> [인자] [옵션]   # CLI 실행
 
 ## CLI 사용 매뉴얼
 
+> **공통 옵션** — `httpget`·`pattern`·`blind`·`fullscan`은 `-k`/`--insecure`로
+> https 인증서 검증을 생략할 수 있다(만료·자체서명 대상용). 기본은 검증 ON.
+
 ### nslookup (별칭: dns, resolve)
 
 도메인 또는 IP를 IP 주소로 조회합니다.
