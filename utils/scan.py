@@ -74,10 +74,15 @@ def run_full_scan(url, param='q', timeout=10, verify=True):
                              scheme=scheme, timeout=timeout, verify=verify)
     policies.append(_policy('Blind SQL Injection', r))
 
-    vulnerable = any(p['verdict'] == '취약' for p in policies)
+    if any(p['verdict'] == '취약' for p in policies):
+        overall = '취약'
+    elif all(p['verdict'] == '안전' for p in policies):
+        overall = '안전'
+    else:
+        overall = '판단불가'
     return {
         'url': f'{scheme}://{target}{path}',
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'overall': '취약' if vulnerable else '안전',
+        'overall': overall,
         'policies': policies,
     }

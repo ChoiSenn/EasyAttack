@@ -28,6 +28,10 @@ def judge_boolean(baseline, r_true, r_false):
     ev = f'참 유사도 {st:.2f} / 거짓 유사도 {sf:.2f}'
     if st - sf >= DIFF_THRESHOLD:
         return 'VULNERABLE', f'참/거짓 응답 상이 ({ev})', '중간'
+    # baseline·참·거짓이 서로 거의 동일하면 조건에 따른 분기가 없다는 뜻 -> SAFE
+    tf = _sim(r_true['body'], r_false['body'])
+    if st >= 0.98 and sf >= 0.98 and tf >= 0.98:
+        return 'SAFE', f'참/거짓/기준선 응답 모두 동등 ({ev})', '중간'
     return 'INCONCLUSIVE', f'응답 차이 미미 ({ev})', '낮음'
 
 
